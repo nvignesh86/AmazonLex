@@ -1,0 +1,120 @@
+exports.handler = (event, context, callback) => {
+
+const slots = event.currentIntent.slots;
+let MtnInfo = slots.MtnInfo;
+console.log("Event::::",JSON.stringify(event));
+
+if(slots.InvalidMtn!==null){
+	MtnInfo = slots.InvalidMtn;  
+}
+
+if(MtnInfo!==null){
+	getMdnDetails(MtnInfo,function(value){
+			callback(null,processDetails(value,MtnInfo,event));
+	});
+}else{
+	 callback( null, {
+                     dialogAction: {
+                     type: "ElicitSlot",
+                     intentName: "Billing",
+                     slots: {
+                          MtnInfo : null,
+                          InvalidMtn : null,
+						  generatePin:null
+                            
+                     },
+                    slotToElicit : "MtnInfo"
+                }
+            });	
+}
+
+function processDetails(value,MtnInfo,event){
+      
+	  if(value.isError === true){
+		  return {
+                     dialogAction: {
+                     type: "ElicitSlot",
+                     intentName: "Billing",
+                     slots: {
+                          MtnInfo : MtnInfo,
+                          InvalidMtn : MtnInfo,
+						  generatePin:null
+                            
+                     },
+                    slotToElicit : "InvalidMtn"
+                }
+            };
+	  }else{
+		console.log("GeneratePIN::::::"+event.currentIntent.slots.generatePin)	;
+		  if(event.currentIntent.slots.generatePin !== null){
+			  return {
+                     dialogAction: {
+                     type: "Close",
+                      fulfillmentState: "Fulfilled",
+						message: {
+						  contentType: "PlainText",
+						  content: "Verification Successful. Your billing due amount is "+event.sessionAttributes.amount
+						}
+					 
+					}
+				}
+		  }else{
+				return {
+				  sessionAttributes:{mdn:value.mtn,amount:value.amount},
+				   dialogAction: {
+						 type: "ElicitSlot",
+						 intentName: "Billing",
+						 slots: {
+							  MtnInfo : MtnInfo,
+							  InvalidMtn : MtnInfo,
+							  generatePin:value.name
+						 },
+						slotToElicit : "generatePin"
+					}
+			  }
+			  
+		  }
+	  }
+}
+
+
+function getMdnDetails(mdn,callBack){
+
+var AWS = require("aws-sdk");
+
+AWS.config.update({
+  region: "us-east-1"
+});
+
+var docClient = new AWS.DynamoDB.DocumentClient();
+
+var params = {
+    TableName : "billingdetails",
+    KeyConditionExpression: "#mtn = :mdn",
+    ExpressionAttributeNames:{
+        "#mtn": "mtn"
+    },
+    ExpressionAttributeValues: {
+        ":mdn":mdn
+    }
+};
+
+docClient.query(params, function(err, data) {
+    if (err) {
+        console.error("Unable to query. Error:", JSON.stringify(err, null, 2));
+    } else {
+        console.log("Query succeeded.");
+        data.Items.forEach(function(item) {
+			if(item.mtn === mdn){
+				callBack(item);
+				return;
+			}
+        });
+			callBack({isError:true});
+			return;
+    }
+});
+
+}
+
+}

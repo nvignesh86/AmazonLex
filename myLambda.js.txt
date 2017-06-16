@@ -1,0 +1,13 @@
+exports.handler = (event, context, callback) => {
+    callback(null, {
+                     dialogAction: {
+                     type: "Close",
+                      fulfillmentState: "Fulfilled",
+						message: {
+						  contentType: "PlainText",
+						  content: "Thank you!! Have a Good Day"
+						}
+					 
+                }
+            });
+};
